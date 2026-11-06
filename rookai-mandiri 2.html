@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RookAi</title>
+<meta name="description" content="RookAi: papan analisis catur offline dengan mesin sendiri: saran langkah terbaik, peluang menang, penilaian langkah, pembukaan dan gambit. Berjalan sepenuhnya di browser.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f766e">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#eef1f4;--ink:#1c2630;--mut:#5d6b78;--panel:#fff;--line:#d3dae1;--l:#e3e9ee;--d:#6f8aa0;--acc:#0f766e;--hint:rgba(15,118,110,.55);--last:rgba(230,180,40,.45)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12181e;--ink:#e6ebf0;--mut:#93a1ae;--panel:#1b232b;--line:#2d3944;--l:#b7c4cf;--d:#5a7387;--acc:#2dd4bf;--hint:rgba(45,212,191,.55);--last:rgba(230,180,40,.4)}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#12181e;--ink:#e6ebf0;--mut:#93a1ae;--panel:#1b232b;--line:#2d3944;--l:#b7c4cf;--d:#5a7387;--acc:#2dd4bf;--hint:rgba(45,212,191,.55);--last:rgba(230,180,40,.4)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 32px;display:grid;gap:20px;grid-template-columns:minmax(0,560px) minmax(260px,1fr);align-items:start}
+@media(max-width:760px){main{grid-template-columns:minmax(0,1fr)}}
+h1{grid-column:1/-1;margin:0;font:700 1.9rem/1.15 Georgia,"Times New Roman",serif;letter-spacing:-.01em}
+h1 small{display:block;font:400 .95rem/1.4 system-ui,sans-serif;color:var(--mut);margin-top:4px}
+#b{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));width:100%;border:2px solid var(--ink);border-radius:4px;overflow:hidden}
+.sq{border:0;padding:0;margin:0;position:relative;cursor:pointer;font:inherit;display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;min-width:0;overflow:hidden}
+.sq.l{background:var(--l)}.sq.d{background:var(--d)}
+.sq.last::before,.sq.hint::before{content:"";position:absolute;inset:0;background:var(--last)}
+.sq.hint::before{background:var(--hint)}
+.sq.sel{outline:3px solid var(--acc);outline-offset:-3px}
+.sq.tg::after{content:"";position:absolute;width:26%;height:26%;border-radius:50%;background:rgba(15,40,60,.35)}
+.sq:focus-visible{outline:3px solid var(--acc);outline-offset:-3px}
+.p{position:relative;z-index:1;font-size:1em;line-height:1}
+.p.w{color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 1px 1px #000}
+.p.b{color:#151a20;text-shadow:0 0 1px rgba(255,255,255,.5)}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:14px}
+#st{font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+button.a,select{font:inherit;padding:9px 14px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.pri{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600}
+:root[data-theme="dark"] button.pri{color:#06201d}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) button.pri{color:#06201d}}
+button.a:disabled{opacity:.5;cursor:wait}
+button.a:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+#sg{min-height:92px;border-left:4px solid var(--acc);padding:4px 0 4px 12px}
+#sg b{font:700 1.7rem/1.2 Georgia,serif}
+#sg span{display:block;color:var(--mut);font-size:.9rem}
+label{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:.92rem}
+.lg{font-size:.8rem;color:var(--mut);line-height:1.9}.ic{vertical-align:-3px}
+.note{font-size:.85rem;color:var(--mut);margin:0}
+#wrap{position:relative}#ar{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+textarea{font:inherit;font-size:.85rem;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%}
+#an{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+#ml{display:flex;flex-wrap:wrap;gap:4px}.mv{font:inherit;font-size:.85rem;padding:3px 7px;border-radius:5px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}.mv.on{outline:2px solid var(--acc)}.bd{font-weight:700;margin-left:4px}
+#sm p,#cm p{margin:.3em 0;font-size:.92rem}#cm span{display:block;color:var(--mut);margin-top:.3em}
+#bx[hidden]{display:none}
+.cr{display:grid;grid-template-columns:4.6rem 1fr;gap:2px 8px;margin:6px 0}.cr b{font-weight:700}.bar{display:block;height:10px;border-radius:5px;background:#2b3640;border:1px solid var(--line);overflow:hidden;align-self:center}.bar i{display:block;height:100%;background:#f3f5f7}.cr em{grid-column:2;font-style:normal;font-size:.8rem;color:var(--mut)}#cd p{margin:.4em 0}
+</style>
+</head>
+<body>
+<script>window.onerror=function(m){var d=document.getElementById('b');if(d)d.insertAdjacentHTML('beforebegin','<p style="color:#b91c1c">Terjadi kesalahan: '+m+'</p>')}</script>
+<noscript>Halaman ini memerlukan JavaScript untuk menjalankan papan dan mesin catur.</noscript>
+<main>
+<h1>RookAi<small>Gerakkan bidak kedua pihak sesuka Anda. Mesin hanya menganalisis: langkah yang mungkin, panah, dan peluang menang tiap langkah.</small></h1>
+<div id="wrap"><div id="b" role="grid" aria-label="Papan catur"></div><svg id="ar" viewBox="0 0 100 100" aria-hidden="true"></svg></div>
+<aside>
+<div id="st" aria-live="polite"></div>
+<div id="sg" aria-live="polite">Tekan “Beri saran” untuk melihat langkah terbaik bagi pihak yang sedang jalan.</div>
+<div id="cd" aria-live="polite"></div>
+<div class="row">
+<button class="a pri" id="bs">Beri saran</button>
+<button class="a" id="bu">Batalkan langkah</button>
+<button class="a" id="bn">Permainan baru</button>
+<button class="a" id="bf">Balik papan</button>
+</div>
+<label>Kontrol waktu game
+<select id="tl"><option value="1">1 menit (Bullet)</option><option value="3" selected>3 menit (Blitz)</option><option value="5">5 menit (Blitz)</option><option value="10">10 menit (Rapid)</option><option value="0">Bebas waktu (analisis dalam)</option><option value="8000">Dalam (8 dtk)</option></select>
+</label>
+<label><input type="checkbox" id="lv" checked> Analisis langsung setiap langkah (Anda menggerakkan kedua pihak)</label>
+<label><input type="checkbox" id="au"> Main melawan mesin (mesin membalas otomatis)</label>
+<label>Saya main sebagai <select id="sd"><option value="w">Putih</option><option value="b">Hitam</option></select></label>
+<label>Rating Anda <input id="ur" type="number" value="1200" min="400" max="3000" style="width:5.5rem;font:inherit;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)"></label>
+<div id="rt" class="note"></div>
+<section id="an"><strong>Analisis permainan</strong>
+<div class="row"><button class="a pri" id="ba">Analisis langkah</button><select id="at" aria-label="Ketelitian analisis"><option value="400">Cepat</option><option value="1200" selected>Teliti</option></select><button class="a" id="bx" hidden>Kembali ke permainan</button></div>
+<textarea id="pg" rows="3" placeholder="Tempel PGN di sini, lalu tekan Muat PGN"></textarea><div class="row"><button class="a" id="bp">Muat PGN</button></div>
+<div id="sm"></div><div id="ml"></div><div id="cm"></div></section>
+<p class="note">Mesin ini berjalan sepenuhnya di browser Anda: tidak ada koneksi ke server, API, atau AI lain, dan tidak ada data yang dikirim ke mana pun. Memori belajar dan rating hanya disimpan di perangkat ini. <button class="a" id="br">Hapus memori dan rating</button></p>
+<p class="note">Jujur soal kekuatan: ini mesin catur yang berjalan di browser Anda (alpha-beta, kira-kira level pemain klub). Elo 5000 tidak ada di dunia nyata; mesin terkuat saat ini, seperti Stockfish, berada di kisaran 3600. Penilaian langkah (brilian, kesalahan, akurasi) dihitung dengan kedalaman terbatas, jadi hanya perkiraan.</p>
+</aside>
+</main>
+<script>
+function Chess(fen){
+const SQ=[];for(let i=0;i<128;i++)SQ.push(i&136?'':'abcdefgh'[i&7]+(8-(i>>4)));
+const idx=s=>(8-+s[1])*16+'abcdefgh'.indexOf(s[0]);
+const NO=[-33,-31,-18,-14,14,18,31,33],KG=[-17,-16,-15,-1,1,15,16,17],BD=[-17,-15,15,17],RD=[-16,-1,1,16];
+const CR=new Array(128).fill(15);CR[116]=12;CR[112]=13;CR[119]=14;CR[4]=3;CR[0]=7;CR[7]=11;
+let B,T,CA,EP,HM,FM,K,ST=[];
+const col=p=>p<'a'?'w':'b';
+function load(f){const p=f.split(' ');B=new Array(128).fill('');K={};let r=0,c=0;
+ for(const ch of p[0]){if(ch==='/'){r++;c=0}else if(ch>='1'&&ch<='8')c+=+ch;else{B[r*16+c]=ch;if(ch==='K')K.w=r*16+c;if(ch==='k')K.b=r*16+c;c++}}
+ T=p[1]||'w';CA=0;for(const ch of p[2]||'-')CA|={K:1,Q:2,k:4,q:8}[ch]||0;
+ EP=p[3]&&p[3]!=='-'?idx(p[3]):-1;HM=+p[4]||0;FM=+p[5]||1;ST=[]}
+function att(s,by){const w=by==='w';
+ for(const o of w?[15,17]:[-15,-17]){const q=s+o;if(!(q&136)&&B[q]===(w?'P':'p'))return 1}
+ for(const o of NO){const q=s+o;if(!(q&136)&&B[q]===(w?'N':'n'))return 1}
+ for(const o of KG){const q=s+o;if(!(q&136)&&B[q]===(w?'K':'k'))return 1}
+ for(const o of BD){let q=s+o;while(!(q&136)){const p=B[q];if(p){if(p===(w?'B':'b')||p===(w?'Q':'q'))return 1;break}q+=o}}
+ for(const o of RD){let q=s+o;while(!(q&136)){const p=B[q];if(p){if(p===(w?'R':'r')||p===(w?'Q':'q'))return 1;break}q+=o}}
+ return 0}
+const opp=c=>c==='w'?'b':'w';
+function gen(){const L=[],w=T==='w',me=T;
+ const add=(f,t,pc,cap,pr,fl)=>L.push({from:SQ[f],to:SQ[t],f,t,color:me,piece:pc,captured:cap,promotion:pr,flags:fl});
+ for(let i=0;i<128;i++){if(i&136){i+=7;continue}const p=B[i];if(!p||col(p)!==me)continue;const t=p.toLowerCase();
+  if(t==='p'){const d=w?-16:16,sr=w?6:1,pr=w?0:7,o=i+d;
+   const pm=(to,cap,fl)=>{if((to>>4)===pr)for(const x of'qrbn')add(i,to,'p',cap,x,fl+'p');else add(i,to,'p',cap,undefined,fl)};
+   if(!(o&136)&&!B[o]){pm(o,undefined,'n');if((i>>4)===sr&&!B[o+d])add(i,o+d,'p',undefined,undefined,'b')}
+   for(const e of[d-1,d+1]){const q=i+e;if(q&136)continue;if(B[q]&&col(B[q])!==me)pm(q,B[q].toLowerCase(),'c');else if(q===EP)add(i,q,'p','p',undefined,'e')}}
+  else if(t==='n'||t==='k'){for(const o of t==='n'?NO:KG){const q=i+o;if(q&136)continue;if(!B[q])add(i,q,t,undefined,undefined,'n');else if(col(B[q])!==me)add(i,q,t,B[q].toLowerCase(),undefined,'c')}}
+  else{for(const o of t==='b'?BD:t==='r'?RD:KG){let q=i+o;while(!(q&136)){if(!B[q])add(i,q,t,undefined,undefined,'n');else{if(col(B[q])!==me)add(i,q,t,B[q].toLowerCase(),undefined,'c');break}q+=o}}}}
+ const h=w?116:4,en=opp(me);
+ if(K[me]===h&&!att(h,en)){
+  if(CA&(w?1:4)&&!B[h+1]&&!B[h+2]&&B[h+3]===(w?'R':'r')&&!att(h+1,en)&&!att(h+2,en))add(h,h+2,'k',undefined,undefined,'k');
+  if(CA&(w?2:8)&&!B[h-1]&&!B[h-2]&&!B[h-3]&&B[h-4]===(w?'R':'r')&&!att(h-1,en)&&!att(h-2,en))add(h,h-2,'k',undefined,undefined,'q')}
+ return L}
+function mv(m){const f=m.f,t=m.t,p=B[f],u={m,CA,EP,HM,FM,p,cp:B[t]};ST.push(u);
+ HM=(m.piece==='p'||m.captured)?0:HM+1;
+ B[t]=m.promotion?(T==='w'?m.promotion.toUpperCase():m.promotion):p;B[f]='';
+ if(m.flags==='e')B[t+(T==='w'?16:-16)]='';
+ if(m.flags==='k')m.piece==='k'&&(B[t-1]=B[t+1],B[t+1]='');
+ if(m.flags==='q')B[t+1]=B[t-2],B[t-2]='';
+ if(m.piece==='k')K[T]=t;
+ CA&=CR[f]&CR[t];EP=m.flags==='b'?(f+t)/2:-1;if(T==='b')FM++;T=opp(T)}
+function un(){const u=ST.pop(),m=u.m;T=opp(T);B[m.f]=u.p;B[m.t]=u.cp;
+ if(m.flags==='e')B[m.t+(T==='w'?16:-16)]=T==='w'?'p':'P';
+ if(m.flags==='k')B[m.t+1]=B[m.t-1],B[m.t-1]='';
+ if(m.flags==='q')B[m.t-2]=B[m.t+1],B[m.t+1]='';
+ if(m.piece==='k')K[T]=m.f;CA=u.CA;EP=u.EP;HM=u.HM;FM=u.FM}
+function legal(){const me=T,en=opp(me);return gen().filter(m=>{mv(m);const ok=!att(K[me],en);un();return ok})}
+function chk(){return att(K[T],opp(T))}
+function san(m){let s='';
+ if(m.flags==='k'&&m.piece==='k'&&m.f%16===4&&m.t>m.f&&(m.t-m.f)===2)s='O-O';
+ else if(m.flags==='q')s='O-O-O';
+ else{const pc=m.piece;
+  if(pc!=='p'){s=pc.toUpperCase();const o=legal().filter(x=>x.piece===pc&&x.t===m.t&&x.f!==m.f);
+   if(o.length){if(!o.some(x=>x.from[0]===m.from[0]))s+=m.from[0];else if(!o.some(x=>x.from[1]===m.from[1]))s+=m.from[1];else s+=m.from}}
+  if(m.captured){if(pc==='p')s+=m.from[0];s+='x'}
+  s+=m.to;if(m.promotion)s+='='+m.promotion.toUpperCase()}
+ mv(m);if(chk())s+=legal().length?'+':'#';un();return s}
+const api={
+ raw:()=>B,turn:()=>T,reset:()=>load('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),load,
+ fen(){let o='';for(let r=0;r<8;r++){let e=0;for(let c=0;c<8;c++){const p=B[r*16+c];if(!p)e++;else{if(e)o+=e;e=0;o+=p}}if(e)o+=e;if(r<7)o+='/'}
+  return o+' '+T+' '+('KQkq'.split('').filter((x,i)=>CA&(1<<i)).join('')||'-')+' '+(EP>=0?SQ[EP]:'-')+' '+HM+' '+FM},
+ board(){const o=[];for(let r=0;r<8;r++){const row=[];for(let c=0;c<8;c++){const p=B[r*16+c];row.push(p?{type:p.toLowerCase(),color:col(p)}:null)}o.push(row)}return o},
+ get(s){const p=B[idx(s)];return p?{type:p.toLowerCase(),color:col(p)}:null},
+ moves(o){let L=legal();if(o&&o.square)L=L.filter(m=>m.from===o.square);return o&&o.verbose?L:L.map(san)},
+ move(m){let x=m;if(typeof m==='string'){x=legal().find(y=>san(y).replace(/[+#]/g,'')===m.replace(/[+#]/g,''))}
+  else if(m.f===undefined){x=legal().find(y=>y.from===m.from&&y.to===m.to&&(!y.promotion||y.promotion===(m.promotion||'q')));if(x)x.san=san(x)}
+  if(!x)return null;mv(x);return x},
+ undo(){if(!ST.length)return null;const m=ST[ST.length-1].m;un();return m},
+ history(o){const ms=ST.map(u=>u.m),need=ms.some(m=>!m.san);
+  if(need){const saved=ms.slice();for(let i=0;i<saved.length;i++)un();for(const m of saved){if(!m.san)m.san=san(m);mv(m)}}
+  return o&&o.verbose?ms.slice():ms.map(m=>m.san)},
+ in_check:chk,in_checkmate:()=>chk()&&!legal().length,in_stalemate:()=>!chk()&&!legal().length,
+ insufficient_material(){const r=[];for(let i=0;i<128;i++){if(i&136){i+=7;continue}const p=B[i];if(p&&p.toLowerCase()!=='k')r.push(p.toLowerCase())}
+  return !r.length||(r.length===1&&(r[0]==='n'||r[0]==='b'))},
+ in_draw(){return HM>=100||api.in_stalemate()||api.insufficient_material()},
+ game_over(){return !legal().length||HM>=100||api.insufficient_material()},
+ load_pgn(t){api.reset();t=t.replace(/\[[^\]]*\]/g,' ').replace(/\{[^}]*\}/g,' ').replace(/;[^\n]*/g,' ').replace(/\([^)]*\)/g,' ').replace(/\$\d+/g,' ').replace(/\d+\.(\.\.)?/g,' ').replace(/0-0-0/g,'O-O-O').replace(/0-0/g,'O-O');
+  for(const tk of t.split(/\s+/)){if(!tk||/^(1-0|0-1|1\/2-1\/2|\*)$/.test(tk))continue;const c=tk.replace(/[+#!?]/g,'');
+   const x=legal().find(y=>san(y).replace(/[+#]/g,'')===c);if(!x){api.reset();return false}x.san=san(x);mv(x)}return true}};
+api.san=san;api.reset();if(fen)load(fen);return api}
+</script>
+<script>
+let G=new Chess();const U={k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'},V={p:100,n:320,b:330,r:500,q:900,k:0};
+let sel=null,flip=false,hint=null,last=null,busy=false,nodes=0,stop=false,deadline=0,VW=null,AR=[],RS=[],PS=[],HM=[],CL=[];
+const $=id=>document.getElementById(id);
+const sq=(r,c)=>'abcdefgh'[c]+(8-r);
+
+function ev(){const B=G.raw();let s=0,mw=0,mb=0,nw=0,nb=0,wk=0,bk=0,bw=0,bb=0;
+ for(let i=0;i<128;i++){if(i&136){i+=7;continue}const p=B[i];if(!p)continue;
+  const t=p.toLowerCase(),w=p!==t,r=i>>4,c=i&7,cen=3.5-Math.max(Math.abs(r-3.5),Math.abs(c-3.5));let v=V[t];
+  if(t==='p'){v+=(w?6-r:r-1)*9+(cen>=2?8:0)}else if(t==='n'||t==='b')v+=cen*10;else if(t==='q')v+=cen*2;else if(t==='k'){v-=cen*8;if(w)wk=i;else bk=i}
+  if(t!=='p'&&t!=='k'){if(w){mw+=V[t];nw++;if(t==='b')bw++}else{mb+=V[t];nb++;if(t==='b')bb++}}
+  s+=w?v:-v}
+ if(bw>1)s+=30;if(bb>1)s-=30;
+ const F=(a,l)=>Math.max(Math.abs(3.5-(l>>4)),Math.abs(3.5-(l&7)))*14+(14-Math.abs((a>>4)-(l>>4))-Math.abs((a&7)-(l&7)))*6;
+ if(mw-mb>=300&&nb===0)s+=F(wk,bk);else if(mb-mw>=300&&nw===0)s-=F(bk,wk);
+ return s}
+const sc=m=>(m.captured?1000+10*V[m.captured]-V[m.piece]:0)+(m.promotion?800:0)+Math.min(H[m.from+m.to]||0,900);
+const order=ms=>ms.sort((a,b)=>sc(b)-sc(a));
+function q(a,b,qd){if((++nodes&255)===0&&Date.now()>deadline)stop=true;if(stop)return 0;const side=G.turn()==='w'?1:-1,st=side*ev();
+ if(st>=b||qd>=5)return st;if(st>a)a=st;
+ const ms=order(G.moves({verbose:true}).filter(m=>m.captured||m.promotion));
+ for(const m of ms){G.move(m);const s=-q(-b,-a,qd+1);G.undo();if(s>=b)return s;if(s>a)a=s}
+ return a}
+function nm(d,a,b,ply){
+ if((++nodes&255)===0&&Date.now()>deadline)stop=true;if(stop)return 0;
+ const ms=G.moves({verbose:true});
+ if(!ms.length)return G.in_check()?-30000+ply:0;
+ if(G.insufficient_material())return 0;
+ if(d<=0)return q(a,b,0);
+ let best=-1e9;
+ let i=0;for(const m of order(ms)){G.move(m);const qt=!m.captured&&!m.promotion;let s;if(i>=4&&d>=3&&qt&&!G.in_check()){s=-nm(d-2,-a-1,-a,ply+1);if(s>a&&!stop)s=-nm(d-1,-b,-a,ply+1)}else s=-nm(d-1,-b,-a,ply+1);G.undo();i++;if(stop)return 0;
+  if(s>best)best=s;if(s>a)a=s;if(a>=b){if(qt){const k=m.from+m.to;H[k]=(H[k]||0)+d*d}break}}
+ return best}
+function search(tl){nodes=0;stop=false;H={};tl=tl||budget();const t0=Date.now();deadline=t0+tl;
+ const root=order(G.moves({verbose:true})),k0=key(G),mm=MEM[k0];let best=root[0],bs=0,dd=0;
+ if(mm){const x=root.find(m=>m.from+m.to+(m.promotion||'')===mm.m);if(x){root.splice(root.indexOf(x),1);root.unshift(x);if(mm.d>=7){x.san=G.san(x);return{m:x,s:mm.s,d:mm.d,n:0}}}}
+ for(let d=1;d<=9;d++){if(d>1&&Date.now()-t0>tl*.45)break;let cb=null,ca=-1e9;
+  for(const m of root){G.move(m);const s=-nm(d-1,-1e9,-ca,1)-(BAD[k0+':'+m.from+m.to]?120:0);G.undo();if(stop)break;if(s>ca){ca=s;cb=m}}
+  if(stop||!cb)break;best=cb;bs=ca;dd=d;root.splice(root.indexOf(cb),1);root.unshift(cb);if(Math.abs(bs)>29000||root.length===1)break}
+ if(best){best.san=G.san(best);if(dd>=4)remember(k0,best,dd,bs*(G.turn()==='w'?1:-1))}
+ return{m:best,s:bs*(G.turn()==='w'?1:-1),d:dd,n:nodes}}
+
+function fmt(s){if(s>29000)return'putih skak mat';if(s<-29000)return'hitam skak mat';return(s>=0?'+':'')+(s/100).toFixed(2)}
+function status(){const t=G.turn()==='w'?'Putih':'Hitam';
+ if(G.in_checkmate())return'Skak mat. '+(G.turn()==='w'?'Hitam':'Putih')+' menang.';
+ if(G.in_stalemate())return'Remis: pat.';if(G.in_draw())return'Remis.';
+ return'Giliran '+t+(G.in_check()?' (skak)':'')}
+function render(){const B=$('b');B.innerHTML='';const bd=(VW||G).board();
+ const tg=sel&&!VW?G.moves({square:sel,verbose:true}).map(m=>m.to):[];
+ for(let i=0;i<8;i++)for(let j=0;j<8;j++){const r=flip?7-i:i,c=flip?7-j:j,s=sq(r,c),p=bd[r][c],d=document.createElement('button');
+  d.className='sq '+((r+c)%2?'d':'l')+(s===sel?' sel':'')+(tg.includes(s)?' tg':'')+(hint&&(s===hint.from||s===hint.to)?' hint':'')+(last&&(s===last.from||s===last.to)?' last':'');
+  d.setAttribute('aria-label',s+(p?', '+(p.color==='w'?'putih ':'hitam ')+p.type:''));
+  if(p)d.innerHTML='<span class="p '+p.color+'">'+U[p.type]+'\uFE0E</span>';
+  d.onclick=()=>click(s);B.appendChild(d)}
+ $('st').textContent=busy?'Mesin sedang berpikir…':status();
+ ['bs','bu','bn','ba','bp'].forEach(i=>$(i).disabled=busy);drawAR();fit()}
+function click(s){if(busy||VW||G.game_over())return;
+ const p=G.get(s);
+ if(sel&&G.moves({square:sel,verbose:true}).some(m=>m.to===s)){
+  last=G.move({from:sel,to:s,promotion:'q'});sel=null;hint=null;
+  $('sg').textContent='Langkah dimainkan: '+last.san+'.';render();
+  if(finish())return;if($('au').checked&&G.turn()===EC()){think(true);return}live();return}
+ sel=(p&&p.color===G.turn())?s:null;render()}
+function think(play){busy=true;render();
+ setTimeout(()=>{const r=search();busy=false;
+  if(play){last=G.move(r.m);hint=null;
+   $('sg').innerHTML='<b>'+last.san+'</b><span>Mesin membalas. Penilaian '+fmt(r.s)+', kedalaman '+r.d+'.</span>'}
+  else{hint={from:r.m.from,to:r.m.to};AR=[{f:r.m.from,t:r.m.to,c:'#16a34a',w:2.6}];
+   $('sg').innerHTML='<b>'+r.m.san+'</b><span>'+r.m.from+' ke '+r.m.to+' · penilaian '+fmt(r.s)+' · kedalaman '+r.d+' · '+r.n.toLocaleString('id-ID')+' posisi dihitung</span>'+info(G.history(),G)}
+  render();if(play&&!finish())live()},40)}
+$('bs').onclick=()=>{if(G.game_over())return;VW=null;$('bx').hidden=true;sel=null;think(false)};
+$('bu').onclick=()=>{G.undo();if($('au').checked&&G.turn()===EC())G.undo();DONE=false;sel=hint=last=null;$('sg').textContent='Langkah dibatalkan.';render();live()};
+$('bn').onclick=()=>{G.reset();sel=hint=last=null;$('sg').textContent='Permainan baru dimulai.';DONE=false;flip=$('sd').value==='b';render();if($('au').checked&&G.turn()===EC())think(true);else live()};
+$('sd').onchange=()=>$('bn').click();$('au').onchange=()=>{if($('au').checked&&!G.game_over()&&G.turn()===EC())think(true)};
+$('bf').onclick=()=>{flip=!flip;render()};
+const N={p:'pion',n:'kuda',b:'bishop',r:'benteng',q:'ratu',k:'raja'};
+const LB={br:['Brilian','!!','#0ea5b7'],bs:['Terbaik','★','#16a34a'],gd:['Bagus','✓','#5d8a3a'],bk:['Buku','B','#8b6b4a'],in:['Ketidaktepatan','?!','#ca8a04'],ms:['Kesalahan','?','#ea580c'],bl:['Blunder','??','#dc2626']};
+const BK=[
+['e4','Pembukaan Pion Raja','','Menguasai pusat dan membuka diagonal bagi bishop dan ratu.'],
+['d4','Pembukaan Pion Ratu','','Pusat dipegang bidak yang dilindungi ratu; permainan cenderung posisional.'],
+['c4','Pembukaan Inggris','','Menekan kotak d5 dari sayap; sangat fleksibel.'],
+['Nf3','Pembukaan Réti','','Kuda dikembangkan dulu, keputusan pion pusat ditunda.'],
+['e4 e5','Permainan Pion Raja','','Kedua pihak berebut pusat secara simetris.'],
+['e4 e5 Nf3 Nc6','Permainan Kuda Raja','','Kuda mengembangkan sambil menyerang dan membela e5.'],
+['e4 e5 Nf3 Nc6 Bb5','Ruy Lopez','','Menekan kuda yang menjaga e5; rencana strategis jangka panjang.'],
+['e4 e5 Nf3 Nc6 Bb5 a6','Ruy Lopez, Varian Morphy','','Hitam menanyai bishop; setelah Ba4 muncul Berlin, Terbuka, dan Tertutup.'],
+['e4 e5 Nf3 Nc6 Bc4','Permainan Italia','','Bishop membidik f7, titik terlemah hitam.'],
+['e4 e5 Nf3 Nc6 Bc4 Bc5','Giuoco Piano','','Pengembangan tenang; putih menyiapkan c3 dan d4.'],
+['e4 e5 Nf3 Nc6 Bc4 Bc5 b4','Gambit Evans','g','Putih mengorbankan pion b demi waktu dan pusat lewat c3 dan d4.'],
+['e4 e5 Nf3 Nc6 Bc4 Nf6','Pertahanan Dua Kuda','','Hitam membalas dengan serangan balik; Ng5 membuka jalur taktik tajam.'],
+['e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 d5 exd5 Nxd5 Nxf7','Serangan Fried Liver','g','Kuda dikorbankan di f7 untuk menyeret raja hitam ke tengah.'],
+['e4 e5 Nf3 Nc6 d4 exd4','Permainan Skotlandia','','Putih membuka pusat; bidak lebih aktif setelah Nxd4.'],
+['e4 e5 Nf3 Nc6 d4 exd4 Bc4','Gambit Skotlandia','g','Putih menunda merebut pion demi pengembangan cepat.'],
+['e4 e5 Nf3 Nf6','Pertahanan Petrov','','Kokoh dan simetris; hitam langsung menyerang e4.'],
+['e4 e5 Nf3 d6','Pertahanan Philidor','','Padat tetapi pasif; hitam menunda serangan balik.'],
+['e4 e5 Nf3 d5','Gambit Gajah','g','Hitam menantang pusat dini dengan risiko pion e5 lemah.'],
+['e4 e5 Nf3 f5','Gambit Latvia','g','Serangan balik tajam namun membuka raja hitam.'],
+['e4 e5 f4','Gambit Raja','g','Putih mengorbankan pion f demi pusat d4 dan serangan di kolom f.'],
+['e4 e5 f4 exf4','Gambit Raja Diterima','g','Hitam mengambil pion; putih mengejar inisiatif dan pengembangan.'],
+['e4 e5 d4 exd4 c3','Gambit Denmark','g','Dua pion dikorbankan untuk pengembangan bishop yang sangat cepat.'],
+['e4 e5 Nc3','Permainan Wina','','Menyiapkan f4 tanpa menutup bidak f.'],
+['e4 c5','Pertahanan Sisilia','','Hitam bermain asimetris untuk menang; respons paling tajam terhadap e4.'],
+['e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6','Sisilia Najdorf','','Pilihan Fischer dan Kasparov; a6 menyiapkan b5 dan e5.'],
+['e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6','Sisilia Naga','','Bishop g7 memegang diagonal panjang; permainan sangat tajam.'],
+['e4 c5 d4 cxd4 c3','Gambit Smith-Morra','g','Pion dikorbankan untuk pengembangan cepat dan kolom terbuka.'],
+['e4 e6','Pertahanan Prancis','','Struktur padat; hitam menyerang pusat lewat d5 dan c5.'],
+['e4 c6','Pertahanan Caro-Kann','','Kokoh; bishop ratu keluar sebelum e6.'],
+['e4 d5','Pertahanan Skandinavia','','Hitam menantang e4 segera; ratu keluar lebih awal.'],
+['e4 d6','Pertahanan Pirc','','Gaya hipermodern: pusat dibiarkan dibangun lalu diserang.'],
+['e4 Nf6','Pertahanan Alekhine','','Memancing bidak putih maju untuk kemudian diserang.'],
+['d4 d5','Permainan Pion Ratu','','Pusat seimbang; perebutan kotak c4 dan e5.'],
+['d4 d5 c4','Gambit Ratu','g','Pion c ditawarkan untuk menarik pion d hitam; biasanya bisa direbut kembali.'],
+['d4 d5 c4 dxc4','Gambit Ratu Diterima','g','Hitam mengambil pion; putih merebut pusat dengan e3 atau e4.'],
+['d4 d5 c4 e6','Gambit Ratu Ditolak','','Struktur kokoh, masalahnya bishop ratu hitam.'],
+['d4 d5 c4 c6','Pertahanan Slav','','Menjaga d5 tanpa mengunci bishop ratu.'],
+['d4 d5 c4 e5','Kontra-Gambit Albin','g','Hitam balik mengorbankan pion demi inisiatif.'],
+['d4 d5 e4','Gambit Blackmar','g','Putih mengorbankan pion e demi pusat dan pengembangan.'],
+['d4 d5 e4 dxe4 Nc3 Nf6 f3','Gambit Blackmar-Diemer','g','Pion dikorbankan demi serangan langsung di sayap raja.'],
+['d4 Nf6 c4 e6 Nc3 Bb4','Pertahanan Nimzo-Indian','','Pin pada kuda c3; pertarungan struktur pion.'],
+['d4 Nf6 c4 g6','Pertahanan India Raja','','Hitam membiarkan putih membangun pusat lalu menyerangnya.'],
+['d4 Nf6 c4 g6 Nc3 d5','Pertahanan Grünfeld','','Hitam menyerang pusat putih secara langsung.'],
+['d4 Nf6 c4 e5','Gambit Budapest','g','Pion e5 dikorbankan demi aktivitas kuda dan bishop.'],
+['d4 Nf6 c4 c5 d5 b5','Gambit Benko','g','Pion dikorbankan untuk kolom a dan b terbuka dan tekanan jangka panjang.'],
+['d4 Nf6 c4 e6 g3','Pembukaan Katalan','','Bishop g2 menekan diagonal panjang a8-h1.'],
+['d4 f5','Pertahanan Belanda','','Hitam menguasai e4 dan bermain agresif.'],
+['d4 f5 e4','Gambit Staunton','g','Pion e dikorbankan demi pengembangan cepat.'],
+['d4 e5','Gambit Englund','g','Hitam mengorbankan pion; putih biasanya cukup mudah menangkalnya.'],
+['d4 d5 Bf4','Sistem London','','Pengembangan solid dengan sedikit teori.'],
+['c4 e5','Inggris, Sisilia Terbalik','','Putih bermain Sisilia dengan tempo ekstra.']
+].map(x=>({l:x[0].split(' '),n:x[1],g:x[2],d:x[3]}));
+function openingFor(h){let b=null;BK.forEach(e=>{if(e.l.length<=h.length&&e.l.every((t,i)=>t===h[i])&&(!b||e.l.length>b.l.length))b=e});return b}
+function inBook(h){return BK.some(e=>e.l.length>=h.length&&h.every((t,i)=>t===e.l[i]))}
+function tip(g){const c={},bs=[];g.board().forEach((row,r)=>row.forEach((p,x)=>{if(!p)return;c[p.color+p.type]=(c[p.color+p.type]||0)+1;if(p.type==='b')bs.push([p.color,(r+x)%2])}));
+ const n=t=>(c['w'+t]||0)+(c['b'+t]||0),mn=n('n')+n('b'),mj=n('r')+n('q'),t=mn+mj;
+ if(!t)return'Akhir pion: raja harus aktif. Rebut oposisi dan hitung kotak pion lewat; satu tempo bisa menentukan menang atau remis.';
+ if(!mn&&!n('q'))return'Akhir benteng: letakkan benteng aktif di belakang pion lewat. Kenali posisi Lucena (menang) dan Philidor (remis).';
+ if(bs.length===2&&mn===2&&!mj&&bs[0][0]!==bs[1][0]&&bs[0][1]!==bs[1][1])return'Bishop beda warna: sangat condong remis walau kurang satu atau dua pion; pihak lemah cukup memblokade.';
+ if(c.wb>1||c.bb>1)return'Pasangan bishop kuat di posisi terbuka; buka struktur pion agar diagonalnya hidup.';
+ if(g.history().length<24&&t>=10)return'Prinsip pembukaan: kuasai pusat, kembangkan bidak ringan, rokade lebih awal, dan jangan menggerakkan bidak yang sama berulang kali.';
+ if(t<=5)return'Akhir permainan: aktifkan raja, ciptakan pion lewat, dan tukar bidak saat unggul materi.';
+ return'Permainan menengah: cari kotak kuat (outpost) bagi kuda, kolom terbuka bagi benteng, dan titik lemah di struktur pion lawan sebelum menyerang raja.'}
+function info(hs,g){const o=openingFor(hs.map(s=>s.replace(/[+#]/g,'')));return(o?'<span><b>'+(o.g?'Gambit: ':'Pembukaan: ')+o.n+'.</b> '+o.d+'</span>':'')+'<span>'+tip(g)+'</span>'}
+function drawAR(){const S=$('ar');if(!VW&&!hint)AR=[];
+ const P=s=>{const c='abcdefgh'.indexOf(s[0]),r=8-+s[1];return[((flip?7-c:c)+.5)*12.5,((flip?7-r:r)+.5)*12.5]};let h='';
+ AR.forEach(a=>{const[x1,y1]=P(a.f),[x2,y2]=P(a.t),dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L,ex=x2-ux*2,ey=y2-uy*2,bx=ex-ux*4.5,by=ey-uy*4.5,px=-uy*2.8,py=ux*2.8;
+  h+='<line x1="'+(x1+ux*3)+'" y1="'+(y1+uy*3)+'" x2="'+bx+'" y2="'+by+'" stroke="'+a.c+'" stroke-width="'+a.w+'" stroke-linecap="round" opacity=".85"/><polygon points="'+ex+','+ey+' '+(bx+px)+','+(by+py)+' '+(bx-px)+','+(by-py)+'" fill="'+a.c+'" opacity=".85"/>';
+  if(a.l)h+='<circle cx="'+(x2+3.6)+'" cy="'+(y2-3.6)+'" r="3.4" fill="'+a.c+'" stroke="#fff" stroke-width=".4"/><text x="'+(x2+3.6)+'" y="'+(y2-3.6)+'" font-size="3.2" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central">'+a.l+'</text>'});
+ S.innerHTML=h}
+function sac(i,hv,ps){const m=hv[i];if(m.piece==='p'||m.piece==='k')return false;
+ const g=new Chess(ps[i+1]),pv=V[m.piece],cv=m.captured?V[m.captured]:0;
+ const caps=g.moves({verbose:true}).filter(x=>x.to===m.to&&x.captured).sort((a,b)=>V[a.piece]-V[b.piece]);
+ if(!caps.length)return false;const c=caps[0];g.move(c);
+ const rec=g.moves({verbose:true}).some(x=>x.to===m.to&&x.captured);
+ return pv-cv-(rec?V[c.piece]:0)>=200}
+function motif(j){const m=HM[j],t=[];
+ if(/k|q/.test(m.flags))t.push('rokade, raja aman dan benteng aktif');
+ if(m.captured)t.push('menangkap '+N[m.captured]);
+ if(m.promotion)t.push('promosi pion');
+ if(/#/.test(m.san))t.push('skak mat');else if(/\+/.test(m.san))t.push('skak');
+ try{const f=PS[j+1].split(' ');f[1]=m.color;f[3]='-';
+  const tg=new Chess(f.join(' ')).moves({verbose:true,square:m.to}).filter(x=>x.captured&&(V[x.captured]>=V[m.piece]||x.captured==='k'));
+  if(tg.length>=2)t.push('garpu (fork): '+N[m.piece]+' menyerang '+tg.map(x=>N[x.captured]).join(' dan '))}catch(e){}
+ if(sac(j,HM,PS))t.push('pengorbanan bidak');
+ return t}
+function show(j){const m=HM[j],c=CL[j],k=c.k,L=LB[k],b=RS[j].m,sg=m.color==='w'?1:-1;
+ VW=new Chess(PS[j+1]);last=m;hint=null;sel=null;$('bx').hidden=false;
+ const same=b&&b.from===m.from&&b.to===m.to&&(b.promotion||'')===(m.promotion||'');
+ AR=[];if(b&&!same)AR.push({f:b.from,t:b.to,c:'#16a34a',w:2.4});
+ AR.push({f:m.from,t:m.to,c:same&&k!=='br'?'#16a34a':L[2],w:2.1,l:L[1]});
+ const ls=(c.loss/100).toFixed(2);
+ const d={br:'Pengorbanan bidak yang berhasil: '+N[m.piece]+' sengaja dibiarkan diserang, tetapi mesin menilai posisi tetap sehat.',bs:'Sama dengan pilihan terbaik mesin.',gd:'Langkah baik, hanya sekitar '+ls+' pion di bawah terbaik'+(b?' ('+b.san+')':'')+'.',bk:'Langkah teori pembukaan.'}[k]||('Mesin lebih menyukai '+(b?b.san:'-')+'; langkah ini kehilangan sekitar '+ls+' pion.');
+ let t='<p>'+ic(k,18)+' <b style="color:'+L[2]+'">'+m.san+', '+L[0]+'</b>. Penilaian posisi '+fmt(RS[j+1].s)+'.</p><p>'+d+'</p>';
+ if(RS[j].s*sg>29000&&RS[j+1].s*sg<29000)t+='<p>Ada mat paksa di posisi sebelumnya yang terlewat.</p>';
+ const mo=motif(j);if(mo.length)t+='<p>Ciri langkah: '+mo.join(', ')+'.</p>';
+ $('cm').innerHTML=t+info(HM.slice(0,j+1).map(x=>x.san),VW);
+ document.querySelectorAll('.mv').forEach((e,i)=>e.classList.toggle('on',i===j));render()}
+async function analyze(){const hv=G.history({verbose:true});
+ if(!hv.length){$('sm').textContent='Mainkan beberapa langkah dulu, atau muat PGN.';return}
+ busy=true;VW=null;AR=[];render();const main=G,tl=+$('at').value,T=new Chess(),ps=[T.fen()],rs=[];
+ hv.forEach(m=>{T.move(m);ps.push(T.fen())});
+ try{for(let i=0;i<ps.length;i++){$('sm').textContent='Menganalisis posisi '+(i+1)+' dari '+ps.length+'…';await new Promise(r=>setTimeout(r,15));
+  G=new Chess(ps[i]);rs.push(G.game_over()?{m:null,s:G.in_checkmate()?(G.turn()==='w'?-30000:30000):0}:search(tl))}}
+ finally{G=main;busy=false}
+ const san=hv.map(m=>m.san.replace(/[+#]/g,'')),wp=x=>50+50*(2/(1+Math.exp(-0.00368208*x))-1),cl=[];
+ hv.forEach((m,i)=>{const sg=m.color==='w'?1:-1,cp=x=>Math.max(-1000,Math.min(1000,x*sg)),bef=cp(rs[i].s),aft=cp(rs[i+1].s),b=rs[i].m,
+  same=b&&b.from===m.from&&b.to===m.to&&(b.promotion||'')===(m.promotion||''),loss=same?0:Math.max(0,bef-aft);
+  let k=same?'bs':loss<=35?'gd':loss<=90?'in':loss<=220?'ms':'bl';
+  if(inBook(san.slice(0,i+1))&&loss<=100)k='bk';else if(loss<=25&&aft>=-50&&bef<=500&&sac(i,hv,ps))k='br';
+  cl.push({k,loss,acc:Math.max(0,Math.min(100,103.17*Math.exp(-0.04354*(wp(bef)-wp(same?bef:aft)))-3.17))})});
+ hv.forEach((m,i)=>{const kk=ps[i].split(' ').slice(0,4).join(' ');if(rs[i].m&&rs[i].d>=4)remember(kk,rs[i].m,rs[i].d,rs[i].s);if($('au').checked&&m.color===EC()&&(cl[i].k==='ms'||cl[i].k==='bl'))BAD[kk+':'+m.from+m.to]=1});save();showR();
+ HM=hv;PS=ps;RS=rs;CL=cl;
+ const sm=['w','b'].map(c=>{const ix=hv.map((m,i)=>i).filter(i=>hv[i].color===c),ct={};ix.forEach(i=>ct[cl[i].k]=(ct[cl[i].k]||0)+1);
+  return'<p><b>'+(c==='w'?'Putih':'Hitam')+'</b>: akurasi '+(ix.reduce((s,i)=>s+cl[i].acc,0)/(ix.length||1)).toFixed(0)+'%'+Object.keys(LB).filter(k=>ct[k]).map(k=>', '+ct[k]+' '+LB[k][0]).join('')+'</p>'});
+ $('sm').innerHTML=sm.join('')+'<p class="lg">'+Object.keys(LB).map(k=>ic(k,15)+' '+LB[k][0]).join(' &nbsp; ')+'</p>'+'<p class="note">Klik sebuah langkah: panah hijau adalah langkah terbaik mesin, panah berwarna lain adalah langkah yang dimainkan.</p>';
+ $('ml').innerHTML='';hv.forEach((m,i)=>{const e=document.createElement('button');e.className='mv';
+  e.innerHTML=(i%2===0?(i/2+1)+'. ':'')+m.san+' '+ic(cl[i].k,15);e.onclick=()=>show(i);$('ml').appendChild(e)});
+ show(hv.length-1)}
+$('ba').onclick=analyze;
+$('bx').onclick=()=>{VW=null;AR=[];last=null;$('bx').hidden=true;render();live()};
+$('bp').onclick=()=>{const t=$('pg').value.trim(),g=new Chess();if(!t||!g.load_pgn(t)){$('sm').textContent='PGN tidak valid atau kosong.';return}
+ G=g;sel=hint=last=VW=null;AR=[];$('ml').innerHTML=$('cm').innerHTML='';$('sm').textContent='PGN dimuat ('+g.history().length+' langkah). Tekan Analisis langkah.';render();live()};
+const wp=x=>50+50*(2/(1+Math.exp(-0.00368208*Math.max(-1000,Math.min(1000,x))))-1);
+function multi(tl){nodes=0;stop=false;H={};const t0=Date.now();deadline=t0+tl;let stab=0,pb='';
+ let root=order(G.moves({verbose:true})),res=root.map(m=>({m,s:0})),dd=0;
+ for(let d=1;d<=9;d++){if(d>1&&Date.now()-t0>tl*.45)break;const t=[];let top=-1e9;
+  for(const m of root){G.move(m);const s=-nm(d-1,-1e9,-(top-200),1);G.undo();if(stop)break;t.push({m,s});if(s>top)top=s}
+  if(stop)break;t.sort((a,b)=>b.s-a.s);res=t;dd=d;root=t.map(x=>x.m);const bk=t[0].m.from+t[0].m.to;stab=bk===pb?stab+1:0;pb=bk;if((d>1&&Math.abs(t[0].s)>29000)||t.length===1||(d>=4&&t[0].s-t[1].s>250)||(stab>=2&&d>=4&&Date.now()-t0>tl*.25))break}
+ const n=nodes;res.slice(0,5).forEach(x=>{x.m.san=G.san(x.m)});
+ res.slice(0,1).forEach(x=>{G.move(x.m);if(!G.game_over()){const q=search(Math.max(60,Math.round(tl*.12)));x.r=q.m?q.m.san:''}G.undo()});
+ return{list:res,d:dd,n,ms:Date.now()-t0}}
+function live(){if(VW)return;const c=$('cd');
+ if(G.game_over()){c.innerHTML='<p>'+status()+'</p>';hint=null;AR=[];render();return}
+ if(!$('lv').checked){c.innerHTML='';return}
+ busy=true;c.innerHTML='<p class="note">Menganalisis posisi…</p>';render();
+ setTimeout(()=>{const r=multi(budget()),mv=G.turn(),sg=mv==='w'?1:-1,
+  M=s=>Math.round(Math.abs(s)>29000?(s>0?100:0):wp(s)),W=s=>mv==='w'?M(s):100-M(s);
+  busy=false;const b=r.list[0];hint={from:b.m.from,to:b.m.to};
+  AR=[{f:b.m.from,t:b.m.to,c:'#16a34a',w:2.5,l:String(M(b.s))}];
+  const row=(a,w,t)=>'<div class="cr"><b>'+a+'</b><span class="bar"><i style="width:'+w+'%"></i></span><em>'+t+'</em></div>';
+  let h=row('Posisi',W(b.s),'Putih '+W(b.s)+'% / Hitam '+(100-W(b.s))+'% · penilaian '+fmt(b.s*sg)+' · kedalaman '+r.d+', '+(r.ms/1000).toFixed(1)+' dtk');
+  h+='<p class="note">'+r.list.length+' langkah legal. Saran terbaik (angka pada panah: peluang menang '+(mv==='w'?'putih':'hitam')+'):</p>';
+  r.list.slice(0,1).forEach((x,i)=>{h+=row(x.m.san,W(x.s),'Putih '+W(x.s)+'% / Hitam '+(100-W(x.s))+'%'+(x.r?' · balasan lawan: '+x.r:'')+(i?'':' · terbaik'))});
+  c.innerHTML=h;render()},30)}
+$('lv').onchange=()=>{if($('lv').checked)live();else{$('cd').innerHTML='';hint=null;AR=[];render()}};
+let H={};
+let DONE=false,MEM={},BAD={},P={e:1500,n:0,w:0,d:0,l:0};
+try{MEM=JSON.parse(localStorage.getItem('pc_mem')||'{}');BAD=JSON.parse(localStorage.getItem('pc_bad')||'{}');P=Object.assign(P,JSON.parse(localStorage.getItem('pc_p')||'{}'))}catch(e){}
+const EC=()=>$('sd').value==='w'?'b':'w';
+const key=g=>g.fen().split(' ').slice(0,4).join(' ');
+function trim(o){const k=Object.keys(o);if(k.length>4000)k.slice(0,800).forEach(x=>delete o[x])}
+function save(){trim(MEM);trim(BAD);try{localStorage.setItem('pc_mem',JSON.stringify(MEM));localStorage.setItem('pc_bad',JSON.stringify(BAD));localStorage.setItem('pc_p',JSON.stringify(P))}catch(e){}}
+function remember(k,m,d,s){const o=MEM[k];if(!o||d>=o.d){MEM[k]={m:m.from+m.to+(m.promotion||''),d,s};if(Math.random()<.2)save()}}
+function showR(){const r=$('rt');if(r)r.innerHTML='Rating mesin: <b>'+Math.round(P.e)+'</b> (hasil vs Anda: '+P.w+' menang, '+P.d+' remis, '+P.l+' kalah). Memori: '+Object.keys(MEM).length+' posisi dipelajari, '+Object.keys(BAD).length+' langkah buruk dihindari. Rating ini dilacak dari hasil permainan Anda, bukan uji resmi.'}
+function finish(){if(!G.game_over())return false;
+ if($('au').checked&&!DONE){DONE=true;const lose=G.in_checkmate()?G.turn():null,S=lose?(lose===EC()?0:1):.5,ur=+$('ur').value||1200,E=1/(1+Math.pow(10,(ur-P.e)/400)),dl=24*(S-E);
+  P.e+=dl;P.n++;if(S===1)P.w++;else if(S===0)P.l++;else P.d++;$('ur').value=Math.round(ur-dl);save();showR();
+  $('sg').innerHTML='<b>'+status()+'</b><span>Rating mesin menjadi '+Math.round(P.e)+'. Tekan Analisis langkah agar mesin mempelajari kesalahannya dari permainan ini.</span>'}
+ else $('sg').textContent=status();
+ hint=null;AR=[];$('cd').innerHTML='';render();return true}
+function ic(k,s){const L=LB[k],t=k==='bk'?'\u2261':L[1];return'<svg class="ic" width="'+s+'" height="'+s+'" viewBox="0 0 20 20" role="img" aria-label="'+L[0]+'"><circle cx="10" cy="10" r="10" fill="'+L[2]+'"/><text x="10" y="10.6" font-size="'+(t.length>1?9:11)+'" font-weight="800" fill="#fff" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif">'+t+'</text></svg>'}
+function budget(){const base={1:300,3:600,5:900,10:1500,0:3500}[+$('tl').value]||600,p=G.history().length,k=G.moves({verbose:true}).length;
+ return Math.round(base*(p<12?.6:p<50?1.2:1)*(k<=2?.4:1))}
+
+$('tl').onchange=()=>live();
+$('br').onclick=()=>{MEM={};BAD={};P={e:1500,n:0,w:0,d:0,l:0};try{['pc_mem','pc_bad','pc_p'].forEach(k=>localStorage.removeItem(k))}catch(e){}showR()};
+function fit(){const B=$('b');B.style.fontSize=Math.max(14,B.clientWidth/8*.72)+'px'}
+if(window.ResizeObserver)new ResizeObserver(fit).observe($('b'));addEventListener('resize',fit);
+showR();render();setTimeout(live,100);
+</script>
+</body>
+</html>
